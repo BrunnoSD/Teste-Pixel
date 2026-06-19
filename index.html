@@ -15,11 +15,90 @@
       defer
     ></script>
     <script>
-      window.pixelId = "6a01db55eaabeebf3f2ec437";
-      var a = document.createElement("script");
-      a.setAttribute("async", "");
-      a.setAttribute("defer", "");
-      a.setAttribute("src", "https://cdn.utmify.com.br/scripts/pixel/pixel.js");
+(function () {
+  const POLL_MS = 500;
+  const UTM_SEP = "jLj";          // separador dentro do utm_source / origem
+  const XCOD_SEP = "hQwK21wXxR";  // separador padrão entre os campos do xcod
+
+  const STORAGE_KEY = { FB: "lead", google: "lead-google" };
+
+  // Extrai a origem base ("FB"/"google") mesmo que já esteja como "FBjLj<id>"
+  function getOrigin(utmSource) {
+    if (!utmSource) return null;
+    const base = utmSource.split(UTM_SEP)[0];
+    return base === "FB" || base === "google" ? base : null;
+  }
+
+  function getLeadIdFromStorage(origin) {
+    const key = STORAGE_KEY[origin];
+    if (!key) return null;
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    try {
+      const obj = JSON.parse(raw);
+      return obj && obj._id ? String(obj._id) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Pega o id do próprio utm_source (se já sufixado) ou do localStorage
+  function resolveLeadId(utmSource, origin) {
+    const prefix = origin + UTM_SEP;
+    if (utmSource && utmSource.startsWith(prefix)) {
+      const id = utmSource.slice(prefix.length);
+      if (id) return id;
+    }
+    return getLeadIdFromStorage(origin);
+  }
+
+  function applyIfNeeded() {
+    const url = new URL(window.location.href);
+    const currentSource = url.searchParams.get("utm_source");
+    const origin = getOrigin(currentSource);
+    if (!origin) return false;
+
+    const id = resolveLeadId(currentSource, origin);
+    if (!id) return false;
+
+    const desired = origin + UTM_SEP + id; // ex.: FBjLj6a3583857da77134c3f58765
+    let changed = false;
+
+    // --- utm_source ---
+    if (currentSource !== desired) {
+      url.searchParams.set("utm_source", desired);
+      changed = true;
+    }
+
+    // --- xcod (corrige só o primeiro segmento, mantém o resto e o hQwK21wXxR) ---
+    const currentXcod = url.searchParams.get("xcod");
+    if (currentXcod) {
+      const parts = currentXcod.split(XCOD_SEP);
+      if (parts[0] !== desired) {
+        parts[0] = desired;
+        url.searchParams.set("xcod", parts.join(XCOD_SEP));
+        changed = true;
+      }
+    }
+
+    if (!changed) return true; // já está tudo certo: para de checar, sem recarregar
+    window.location.replace(url.toString());
+    return true;
+  }
+
+  if (applyIfNeeded()) return;
+  const interval = setInterval(() => {
+    if (applyIfNeeded()) clearInterval(interval);
+  }, POLL_MS);
+})();
+</script>
+
+    <script>
+      window.pixelId="6a1a487ab6ad69250920273b";
+      var a=document.createElement("script");
+      a.setAttribute("async","");
+      a.setAttribute("defer","");
+      a.setAttribute("src","https://cdn.utmify.com.br/scripts/pixel/pixel.js");
       document.head.appendChild(a);
     </script>
   </body>
